@@ -278,9 +278,9 @@ def main(xlsm_path):
     # Nombre del archivo de salida
     output_name = f"{tipo_conv}_{convenio}_{fecha_larga}.txt"
 
-    # Escribir archivo: UTF-8 con BOM, cada línea termina en CRLF
+    # Escribir archivo: UTF-8 sin BOM, cada línea termina en CRLF
+    # (Banco Galicia no acepta BOM — el archivo de feb que funcionó no lo tiene)
     with open(output_name, 'wb') as f:
-        f.write(b'\xef\xbb\xbf')   # UTF-8 BOM
         for line in [header] + details + [trailer]:
             f.write(line.encode('utf-8') + b'\r\n')
 
@@ -288,7 +288,7 @@ def main(xlsm_path):
     print(f"  Header   : 1 registro")
     print(f"  Detalle  : {len(details)} empleados")
     print(f"  Trailer  : 1 registro")
-    print(f"  Total pesos : ${ws['B10'].value:,.2f}")
+    print(f"  Total pesos : ${suma_detalle/100:,.2f}")
 
 
 if __name__ == '__main__':
