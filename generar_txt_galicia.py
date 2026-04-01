@@ -96,11 +96,12 @@ def cbu_str(value, width=26):
 
 # --- Generación de registros ---
 
-def make_header(ws, fecha_override=None):
+def make_header(ws, fecha_override=None, importe_override=None):
     """
     Genera la línea de Header (477 chars).
     Fuente: hoja 'Def-Header' + celdas B2:B11 de 'Transferencias y Pagos'
     Si fecha_override está presente, se usa en lugar de B11.
+    Si importe_override está presente, se usa en lugar de B10.
     """
     tipo_conv = val_str(ws['B2'].value)
     convenio  = pad_left_zeros(ws['B3'].value, 6)         # B3: N° Convenio
@@ -110,7 +111,7 @@ def make_header(ws, fecha_override=None):
     cta_deb   = pad_left_zeros(ws['B7'].value, 12)         # B7: Cuenta Débito
     leyenda   = pad_right(val_str(ws['B8'].value).upper(), 15)   # B8: Leyenda (upper)
     consol    = CONSOLIDADO.get(val_str(ws['B9'].value), 'N')    # B9: Consolidado
-    importe   = amount_str(ws['B10'].value, 14)            # B10: Importe Total (2 dec)
+    importe   = importe_override if importe_override else amount_str(ws['B10'].value, 14)
     fecha     = fecha_override if fecha_override else fecha_str(ws['B11'].value)
 
     conv_code = CONVENIO_CODE.get(tipo_conv, '*H3')
@@ -252,11 +253,24 @@ def main(xlsm_path):
             if isinstance(employees[0][2], datetime):
                 fecha_larga = employees[0][2].strftime('%d%m%Y')
 
-    # Header (usa fecha validada contra detalle)
-    header = make_header(ws, fecha_override=fecha_header)
-
     # Líneas de detalle
     details = [make_detail(emp) for emp in employees]
+
+    # Validar que el importe del header (B10) coincida con la suma de importes
+    # del detalle. Si no coinciden, usar la suma real para evitar rechazos bancarios.
+    importe_header = amount_str(ws['B10'].value, 14)
+    suma_detalle = sum(round(float(emp[7] or 0) * 100) for emp in employees)
+    importe_calculado = str(suma_detalle).zfill(14)
+    importe_override = None
+    if importe_header != importe_calculado:
+        diff_cents = abs(int(importe_header) - suma_detalle)
+        print(f"  AVISO: Importe Header B10 ({importe_header}) no coincide con "
+              f"suma detalle ({importe_calculado}). Diff: ${diff_cents/100:.2f}. "
+              f"Usando suma detalle.")
+        importe_override = importe_calculado
+
+    # Header (usa fecha e importe validados contra detalle)
+    header = make_header(ws, fecha_override=fecha_header, importe_override=importe_override)
 
     # Trailer
     trailer = make_trailer(convenio, len(details))
